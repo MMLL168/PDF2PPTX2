@@ -1,1269 +1,729 @@
 <!DOCTYPE html>
-
 <html lang="zh-TW">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>觀點LAB｜NLM PDF PRO V1.5</title>
-
     <script src="https://cdn.tailwindcss.com"></script>
-
     <!-- PDF.js 核心 -->
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
     <!-- PptxGenJS (PPTX 生成) -->
-
     <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
-
     <!-- JSZip (用於 PPTX 合併邏輯) -->
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
     <style>
-
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
-
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; }
-
-       
-
+        
         /* 全域文字大小修正為 11px */
-
         .text-size-11 { font-size: 11px !important; }
-
-       
-
+        
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #2563eb; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
-
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-       
-
+        
         .pdf-view-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--pdf-page-width, 100px), 1fr)); gap: 0.75rem; }
-
-       
-
-        .slots-grid {
-
-            display: grid;
-
-            grid-template-columns: repeat(auto-fill, minmax(var(--slot-width, 100px), 1fr));
-
-            gap: 1rem;
-
+        
+        .slots-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(var(--slot-width, 100px), 1fr)); 
+            gap: 1rem; 
         }
 
-
-
         .custom-scrollbar::-webkit-scrollbar { height: 5px; width: 5px; }
-
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-
-       
-
+        
         /* 頁面卡片動態外框與背景變化 */
-
         .page-card { transition: all 0.2s ease; border: 2px solid transparent; flex-shrink: 0; position: relative; }
-
         .page-card:hover { transform: translateY(-2px); }
-
-       
-
+        
         .slot-card { transition: all 0.2s ease; border: 1px solid #e2e8f0; }
-
         .slot-card:hover { border-color: #3b82f6; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-
-       
-
+        
         /* 輸入框樣式 */
-
         .input-compact { @apply border border-slate-200 rounded px-2 py-1 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all font-bold text-slate-700 bg-white shadow-sm; font-size: 11px; }
-
-       
-
+        
         .waiting-badge { background: #64748b; color: white; padding: 1px 6px; border-radius: 4px; font-weight: 900; font-size: 11px; }
 
-
-
         .log-console { background: #0f172a; color: #10b981; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 8px; height: 120px; overflow-y: auto; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3); }
-
         .log-line { margin-bottom: 1px; }
-
         .log-line::before { content: "> "; opacity: 0.5; }
 
+        /* Modal 樣式 */
+        .modal-overlay { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
     </style>
-
 </head>
-
 <body class="min-h-screen text-slate-900 pb-6 text-size-11">
 
-
-
     <div class="max-w-[1600px] mx-auto px-4 py-3 font-black">
-
         <!-- 標題與狀態 -->
-
         <header class="mb-4 flex flex-col md:flex-row justify-between items-center gap-2">
-
             <div class="flex items-baseline gap-2">
-
                 <h1 class="text-xl font-black text-slate-900 tracking-tighter italic leading-none">觀點LAB｜NLM PDF <span class="text-blue-600 font-black">PRO V1.5</span></h1>
-
                 <p class="text-slate-400 font-bold hidden md:block text-size-11">高精度佈局還原系統</p>
-
             </div>
-
-            <div class="bg-white px-2 py-1 rounded-lg shadow-sm border border-slate-100 flex items-center gap-2">
-
-                <span class="font-black text-slate-400 uppercase tracking-widest leading-none text-size-11">STATUS</span>
-
-                <span class="font-black text-emerald-600 flex items-center gap-1 leading-none text-size-11">
-
-                    <span class="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span> 系統版本 V1.5 已啟動
-
-                </span>
-
+            <div class="flex items-center gap-2">
+                <button id="api-setting-btn" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1 rounded-lg font-black text-size-11 flex items-center gap-1 transition-all shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    API 設定
+                </button>
+                <div class="bg-white px-2 py-1 rounded-lg shadow-sm border border-slate-100 flex items-center gap-2">
+                    <span class="font-black text-slate-400 uppercase tracking-widest leading-none text-size-11">STATUS</span>
+                    <span class="font-black text-emerald-600 flex items-center gap-1 leading-none text-size-11">
+                        <span class="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span> V1.5 (Web)
+                    </span>
+                </div>
             </div>
-
         </header>
 
-
-
         <!-- 第一區：PDF 解析區 (工作台 1) -->
-
         <section class="mb-6 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-
             <div class="flex flex-col md:flex-row md:items-center justify-between mb-2 gap-2 border-b border-slate-50 pb-2">
-
                 <div class="flex items-center gap-2">
-
                     <div class="w-5 h-5 bg-slate-900 text-white rounded flex items-center justify-center font-black text-size-11">1</div>
-
                     <h2 class="font-black text-slate-800 tracking-tight text-center text-size-11">PDF 高精細解析</h2>
-
                 </div>
-
-               
-
+                
                 <div id="pdf-controls" class="hidden flex flex-wrap items-center gap-2">
-
                     <div class="flex items-center gap-1.5 pl-2">
-
                         <span class="font-black text-slate-400 tracking-widest uppercase leading-none text-size-11">縮放</span>
-
                         <input type="range" id="pdf-zoom-range" min="100" max="400" value="100" class="h-1 w-24 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
-
                     </div>
-
                     <button id="add-all-pages-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md font-black shadow-sm transition leading-none text-size-11">全部導入工作台2</button>
-
                 </div>
-
             </div>
-
-
 
             <div id="pdf-drop-zone" class="border-2 border-dashed border-slate-100 rounded-xl p-3 text-center cursor-pointer hover:border-blue-300 hover:bg-slate-50 transition-all group relative">
-
                 <input type="file" id="pdf-file-input" class="hidden" accept="application/pdf">
-
                 <div id="pdf-empty-state" class="py-1">
-
                     <p class="font-bold text-slate-500 text-size-11">點擊或拖放 PDF 開始解析</p>
-
                 </div>
-
                 <div id="pdf-preview-container" class="hidden text-left">
-
                     <div class="flex items-center justify-between bg-slate-50 px-2 py-1 rounded-lg mb-2">
-
                         <span id="page-count-tag" class="bg-slate-900 text-white px-1.5 py-0.5 rounded font-black uppercase tracking-tighter text-size-11">0 PAGES</span>
-
                         <div class="flex gap-1.5 items-center flex-wrap justify-end">
-
                             <input type="text" id="pdf-export-name" value="A1" placeholder="檔名..." class="input-compact w-20">
-
-                           
-
+                            
                             <button id="pdf-to-pptx-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded font-black shadow-sm transition flex items-center gap-1.5 text-size-11">
-
                                 <span id="pptx-btn-text">視覺還原 PPTX</span>
-
                                 <div id="pptx-loader" class="loader !w-2.5 !h-2.5 !border-white !border-t-transparent hidden"></div>
-
                             </button>
-
                             <button id="pdf-download-backup-btn" class="hidden bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded font-black shadow-md transition-all animate-bounce text-size-11">還原下載 (備份)</button>
-
                             <button id="clear-pdf-btn" class="font-black text-red-500 hover:underline text-size-11">清除數據</button>
-
                         </div>
-
                     </div>
-
                     <div id="pdf-pages-list" class="pdf-view-grid custom-scrollbar"></div>
-
                 </div>
-
             </div>
-
         </section>
-
-
 
         <!-- 第二區：圖片去文字工作台 (工作台 2) -->
-
         <section class="mb-6 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-
             <div class="flex flex-col md:flex-row md:items-center justify-between mb-3 gap-2 border-b border-slate-50 pb-2">
-
                 <div class="flex items-center gap-2">
-
                     <div class="w-5 h-5 bg-blue-600 text-white rounded flex items-center justify-center font-black text-size-11">2</div>
-
                     <h2 class="font-black text-slate-800 tracking-tight text-size-11">圖片去文字工作台</h2>
-
                 </div>
-
-               
-
+                
                 <div class="flex items-center gap-2 flex-wrap">
-
                     <div id="result-export-group" class="hidden flex items-center gap-2">
-
                         <input type="text" id="results-export-name" value="B1" placeholder="檔名..." class="input-compact w-24">
-
                         <button id="export-results-pptx-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-black shadow-md transition-all text-size-11">導出結果 PPTX</button>
-
                     </div>
-
-
 
                     <div class="flex items-center gap-3 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
-
                         <div class="flex items-center gap-2">
-
                             <label class="font-black text-slate-400 tracking-widest uppercase text-size-11">工作台網格</label>
-
                             <input type="range" id="slot-zoom-range" min="100" max="400" value="100" class="h-1 w-24 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
-
                         </div>
-
                         <div class="w-px h-3 bg-slate-300"></div>
-
                         <button id="clear-all-slots-btn" class="hidden font-black text-red-500 hover:text-red-700 transition-colors text-size-11">清空工作台</button>
-
                     </div>
-
-
 
                     <button id="process-all-btn" class="bg-slate-900 hover:bg-black text-white px-4 py-1.5 rounded-lg font-black shadow-lg hidden transition-all active:scale-95 text-size-11">批次去文字</button>
-
                 </div>
-
             </div>
-
-
 
             <div id="master-drop-zone" class="border-2 border-dashed border-slate-100 rounded-xl p-3 text-center cursor-pointer hover:border-blue-300 hover:bg-slate-50 transition-all mb-3 group relative overflow-hidden">
-
                 <input type="file" id="master-file-input" class="hidden" accept="image/*" multiple>
-
                 <div class="flex items-center justify-center gap-2">
-
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
-
                     <p class="text-slate-500 font-bold leading-none text-size-11">導入圖片進行處理</p>
-
                 </div>
-
             </div>
-
-
 
             <div id="slots-container" class="slots-grid"></div>
-
         </section>
-
-
 
         <!-- 第三區：PPTX 魔法合併區 -->
-
         <section class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-
             <div class="flex flex-col md:flex-row md:items-center justify-between mb-3 border-b border-slate-50 pb-2 gap-2">
-
                 <div class="flex items-center gap-2">
-
                     <div class="w-5 h-5 bg-emerald-600 text-white rounded flex items-center justify-center font-black text-size-11">3</div>
-
                     <h2 class="font-black text-slate-800 tracking-tight leading-none text-size-11">PPTX 內容魔法合併</h2>
-
                 </div>
-
                 <div class="flex items-center gap-2">
-
                     <input type="text" id="merge-export-name" value="Merged_Result" placeholder="檔名..." class="input-compact w-32 text-size-11">
-
                     <span class="font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded italic text-size-11">文字內容 + 背景模板</span>
-
                 </div>
-
             </div>
-
-           
-
+            
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-
                 <div id="pptx-text-drop" class="border border-dashed border-slate-200 rounded-xl p-3 text-center cursor-pointer hover:border-blue-400 bg-slate-50 transition-all flex flex-col items-center justify-center min-h-[80px]">
-
                     <input type="file" id="pptx-text-input" class="hidden" accept=".pptx">
-
                     <p class="font-black text-slate-600 leading-none text-size-11">1. 選擇文字來源檔 (還原出的 PPTX)</p>
-
                     <span id="pptx-text-name" class="text-slate-400 italic mt-1 truncate max-w-full text-size-11">尚未選擇檔案</span>
-
                 </div>
-
                 <div id="pptx-bg-drop" class="border border-dashed border-slate-200 rounded-xl p-3 text-center cursor-pointer hover:border-emerald-400 bg-slate-50 transition-all flex flex-col items-center justify-center min-h-[80px]">
-
                     <input type="file" id="pptx-bg-input" class="hidden" accept=".pptx">
-
                     <p class="font-black text-slate-600 leading-none text-size-11">2. 選擇背景基底檔 (視覺模版)</p>
-
                     <span id="pptx-bg-name" class="text-slate-400 italic mt-1 truncate max-w-full text-size-11">尚未選擇檔案</span>
-
                 </div>
-
             </div>
-
-
 
             <div class="flex flex-col items-center gap-3">
-
                 <button id="start-merge-btn" class="bg-slate-900 hover:bg-black text-white px-10 py-2 rounded-xl font-black shadow-lg transition-all text-size-11">執行合併</button>
-
                 <div id="merge-log-container" class="w-full hidden">
-
                     <div class="flex items-center justify-between mb-1">
-
                         <span class="font-black text-slate-400 uppercase italic text-size-11">處理進度日誌</span>
-
                         <button id="download-merged-btn" class="hidden bg-emerald-600 text-white px-2 py-0.5 rounded font-black animate-pulse text-size-11">下載合併結果</button>
-
                     </div>
-
                     <div id="pptx-logs" class="log-console custom-scrollbar text-size-11"></div>
-
                 </div>
-
             </div>
-
         </section>
-
     </div>
 
-
+    <!-- API Key Modal -->
+    <div id="api-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-md border border-slate-100">
+            <h3 class="text-lg font-black text-slate-900 mb-2">設定 Gemini API Key</h3>
+            <p class="text-slate-500 mb-4 text-size-11">請輸入您的 Google Gemini API Key 以啟用 AI 功能。金鑰將僅儲存於您的瀏覽器本地 (Local Storage)，不會上傳至任何伺服器。</p>
+            <input type="password" id="api-key-input" class="w-full border border-slate-300 rounded-lg px-3 py-2 mb-4 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700" placeholder="Paste your API Key here...">
+            <div class="flex justify-end gap-2">
+                <button id="cancel-api-btn" class="text-slate-500 font-bold px-3 py-1.5 hover:bg-slate-100 rounded-lg text-size-11">取消</button>
+                <button id="save-api-btn" class="bg-blue-600 text-white font-black px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors text-size-11">儲存設定</button>
+            </div>
+            <div class="mt-3 text-center">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-500 hover:underline text-size-11 font-bold">👉 點此免費獲取 API Key</a>
+            </div>
+        </div>
+    </div>
 
     <!-- 槽位模板 (工作台 2 使用) -->
-
     <template id="slot-template">
-
         <div class="slot-card bg-white rounded-xl p-2 flex flex-col shadow-sm">
-
             <div class="flex justify-between items-center mb-1">
-
                 <span class="font-black text-blue-600 slot-label uppercase tracking-tighter text-size-11 italic">ITEM 01</span>
-
                 <button class="remove-btn text-slate-300 hover:text-red-500 font-black text-sm px-1">×</button>
-
             </div>
-
             <div class="space-y-1.5 flex-grow">
-
                 <div class="aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-50 relative group shadow-inner">
-
                     <img class="original-img w-full h-full object-contain" src="">
-
                     <div class="slot-loader absolute inset-0 bg-white/80 hidden flex flex-col items-center justify-center">
-
                         <div class="loader mb-1"></div>
-
                         <span class="font-black text-blue-600 uppercase text-size-11 tracking-widest">Processing</span>
-
                     </div>
-
                     <div class="slot-waiting absolute inset-0 bg-slate-900/10 hidden flex flex-col items-center justify-center font-black"><span class="waiting-badge text-size-11">QUEUED</span></div>
-
                 </div>
-
                 <div class="aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-50 relative flex items-center justify-center text-center shadow-inner">
-
                     <img class="result-img w-full h-full object-contain hidden" src="">
-
                     <div class="placeholder text-slate-200 italic font-black uppercase text-size-11">Waiting Result</div>
-
                 </div>
-
             </div>
-
             <div class="flex gap-1.5 mt-2.5">
-
                 <button class="process-btn bg-slate-900 hover:bg-black text-white py-1.5 rounded-md flex-1 font-black transition-all leading-none text-size-11">去文字處理</button>
-
                 <button class="download-btn bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 rounded-md font-black disabled:opacity-10 transition-all leading-none" disabled>
-
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-
                 </button>
-
             </div>
-
         </div>
-
     </template>
-
-
 
     <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 rounded-lg shadow-xl opacity-0 transition-all pointer-events-none z-50 font-black text-size-11"></div>
 
-
-
     <script>
-
         window.addEventListener('DOMContentLoaded', () => {
-
-            const apiKey = process.env.API_KEY;
+            // 優先從 localStorage 讀取，其次嘗試讀取環境變數 (針對 AI Studio 環境)
+            let apiKey = localStorage.getItem('gemini_api_key') || '';
+            if (!apiKey && typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+                apiKey = process.env.API_KEY;
+            }
 
             const MODEL_OCR = "gemini-2.5-flash-preview-09-2025";
-
-            const MODEL_IMAGE = "gemini-2.5-flash-image";
-
-
+            const MODEL_IMAGE = "gemini-2.5-flash-image"; 
 
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-
-
             const toast = document.getElementById('toast');
-
             const pdfPagesList = document.getElementById('pdf-pages-list');
-
             const pdfPreviewContainer = document.getElementById('pdf-preview-container');
-
             const pdfControls = document.getElementById('pdf-controls');
-
             const pdfZoomRange = document.getElementById('pdf-zoom-range');
-
             const slotsContainer = document.getElementById('slots-container');
-
             const slotZoomRange = document.getElementById('slot-zoom-range');
-
             const processAllBtn = document.getElementById('process-all-btn');
-
             const clearAllSlotsBtn = document.getElementById('clear-all-slots-btn');
-
             const resultExportGroup = document.getElementById('result-export-group');
-
             const pptxLogs = document.getElementById('pptx-logs');
-
             const mergeLogContainer = document.getElementById('merge-log-container');
-
             const downloadMergedBtn = document.getElementById('download-merged-btn');
-
             const startMergeBtn = document.getElementById('start-merge-btn');
-
             const pdfDownloadBackupBtn = document.getElementById('pdf-download-backup-btn');
 
+            // API Modal Controls
+            const apiModal = document.getElementById('api-modal');
+            const apiSettingBtn = document.getElementById('api-setting-btn');
+            const saveApiBtn = document.getElementById('save-api-btn');
+            const cancelApiBtn = document.getElementById('cancel-api-btn');
+            const apiKeyInput = document.getElementById('api-key-input');
 
-
-            let currentPdfPageUrls = [];
-
-            let slots = [];
-
-            let textPptxFile = null;
-
-            let bgPptxFile = null;
-
-            let mergedBlob = null;
-
-            let lastRestoreBlob = null;
-
-
-
-            function showToast(msg, isError = false) {
-
-                if (!toast) return;
-
-                toast.textContent = msg;
-
-                toast.style.backgroundColor = isError ? '#ef4444' : '#0f172a';
-
-                toast.classList.replace('opacity-0', 'opacity-100');
-
-                setTimeout(() => toast.classList.replace('opacity-100', 'opacity-0'), 3000);
-
+            // --- API Key Management Logic ---
+            function openApiModal() {
+                apiKeyInput.value = apiKey; // 顯示當前 Key
+                apiModal.classList.remove('hidden');
             }
 
+            function closeApiModal() {
+                apiModal.classList.add('hidden');
+            }
 
+            apiSettingBtn.onclick = openApiModal;
+            cancelApiBtn.onclick = closeApiModal;
+
+            saveApiBtn.onclick = () => {
+                const newKey = apiKeyInput.value.trim();
+                if (newKey) {
+                    apiKey = newKey;
+                    localStorage.setItem('gemini_api_key', apiKey);
+                    showToast('API Key 已儲存');
+                    closeApiModal();
+                } else {
+                    showToast('請輸入有效的 API Key', true);
+                }
+            };
+
+            // 如果沒有 Key，自動提示使用者
+            if (!apiKey) {
+                setTimeout(() => {
+                    showToast('請先設定 API Key 才能使用 AI 功能');
+                    openApiModal();
+                }, 1000);
+            }
+            // -------------------------------
+
+            let currentPdfPageUrls = [];
+            let slots = [];
+            let textPptxFile = null;
+            let bgPptxFile = null;
+            let mergedBlob = null;
+            let lastRestoreBlob = null;
+
+            function showToast(msg, isError = false) {
+                if (!toast) return;
+                toast.textContent = msg;
+                toast.style.backgroundColor = isError ? '#ef4444' : '#0f172a';
+                toast.classList.replace('opacity-0', 'opacity-100');
+                setTimeout(() => toast.classList.replace('opacity-100', 'opacity-0'), 3000);
+            }
 
             const wait = (ms) => new Promise(res => setTimeout(res, ms));
 
-
-
             async function fetchWithRetry(url, options, maxRetries = 6) {
+                // 檢查 API Key 是否存在
+                if (!apiKey) {
+                    openApiModal();
+                    throw new Error("請先設定 API Key");
+                }
 
                 const delays = [1000, 2000, 4000, 8000, 16000, 32000];
+                // 動態將 Key 加入 URL (覆蓋原本寫死的部分)
+                const urlObj = new URL(url);
+                urlObj.searchParams.set('key', apiKey);
+                const finalUrl = urlObj.toString();
 
                 for (let i = 0; i < maxRetries; i++) {
-
                     try {
-
-                        const response = await fetch(url, options);
-
+                        const response = await fetch(finalUrl, options);
                         if (response.ok) return await response.json();
-
                         if (response.status === 429) { await wait(delays[i]); continue; }
-
                         const errorJson = await response.json();
-
                         throw new Error(errorJson.error?.message || `HTTP ${response.status}`);
-
                     } catch (e) {
-
                         if (i === maxRetries - 1) throw e;
-
                         await wait(delays[i]);
-
                     }
-
                 }
-
             }
-
-
 
             function createNewSlot(imageUrl = null) {
-
                 const index = slots.length;
-
                 const clone = document.getElementById('slot-template').content.cloneNode(true);
-
                 const card = clone.querySelector('.slot-card');
-
                 const data = {
-
                     id: Date.now() + Math.random(),
-
                     el: card,
-
                     originalImg: card.querySelector('.original-img'),
-
                     resultImg: card.querySelector('.result-img'),
-
                     loader: card.querySelector('.slot-loader'),
-
                     waitingOverlay: card.querySelector('.slot-waiting'),
-
                     originalBase64: null
-
                 };
-
                 card.querySelector('.slot-label').textContent = `ITEM ${String(index + 1).padStart(2, '0')}`;
-
                 card.querySelector('.process-btn').onclick = () => processSingleSlot(data);
-
                 card.querySelector('.remove-btn').onclick = () => removeSlot(data);
-
                 if (imageUrl) {
-
                     data.originalBase64 = imageUrl.split(',')[1];
-
                     data.originalImg.src = imageUrl;
-
                     card.querySelector('.placeholder').classList.add('hidden');
-
                 }
-
                 slots.push(data);
-
                 slotsContainer.appendChild(card);
-
                 updateGlobalControls();
-
                 return data;
-
             }
-
-
 
             function removeSlot(data) {
-
                 data.el.remove();
-
                 slots = slots.filter(s => s.id !== data.id);
-
                 slots.forEach((s, i) => {
-
                     s.el.querySelector('.slot-label').textContent = `ITEM ${String(i + 1).padStart(2, '0')}`;
-
                 });
-
                 updateGlobalControls();
-
             }
-
-
 
             function clearAllSlots() {
-
                 slotsContainer.innerHTML = '';
-
                 slots = [];
-
                 updateGlobalControls();
-
                 showToast('工作台已清空');
-
             }
-
-
 
             function updateGlobalControls() {
-
                 const hasProcessable = slots.some(s => s.originalBase64 && !s.resultImg.src.startsWith('data'));
-
                 const hasResults = slots.some(s => s.resultImg.src.startsWith('data:image'));
-
                 clearAllSlotsBtn.classList.toggle('hidden', slots.length === 0);
-
                 processAllBtn.classList.toggle('hidden', !hasProcessable);
-
                 resultExportGroup.classList.toggle('hidden', !hasResults);
-
             }
-
-
 
             slotZoomRange.oninput = () => {
-
                 slotsContainer.style.setProperty('--slot-width', `${slotZoomRange.value}px`);
-
             };
-
-
 
             document.getElementById('pdf-file-input').onchange = (e) => processPdf(e.target.files[0]);
-
             document.getElementById('pdf-drop-zone').onclick = (e) => {
-
                 if(!e.target.closest('#pdf-preview-container')) document.getElementById('pdf-file-input').click();
-
             };
-
-
 
             document.getElementById('clear-pdf-btn').onclick = (e) => {
-
                 e.stopPropagation();
-
                 pdfPagesList.innerHTML = '';
-
                 currentPdfPageUrls = [];
-
                 pdfPreviewContainer.classList.add('hidden');
-
                 pdfControls.classList.add('hidden');
-
                 pdfDownloadBackupBtn.classList.add('hidden');
-
                 document.getElementById('pdf-empty-state').classList.remove('hidden');
-
                 lastRestoreBlob = null;
-
                 showToast('PDF 數據已清除');
-
             };
-
-
 
             async function processPdf(file) {
-
                 if(!file || file.type !== 'application/pdf') return;
-
                 showToast('正在解析 PDF...');
-
                 currentPdfPageUrls = [];
-
                 pdfPreviewContainer.classList.remove('hidden');
-
                 pdfControls.classList.remove('hidden');
-
                 pdfPagesList.innerHTML = '';
-
                 document.getElementById('pdf-empty-state').classList.add('hidden');
 
-
-
                 try {
-
                     const arrayBuffer = await file.arrayBuffer();
-
                     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
                     document.getElementById('page-count-tag').textContent = `${pdf.numPages} PAGES`;
 
-
-
                     for (let i = 1; i <= pdf.numPages; i++) {
-
                         const page = await pdf.getPage(i);
-
                         const viewport = page.getViewport({ scale: 2 });
-
                         const canvas = document.createElement('canvas');
-
                         const ctx = canvas.getContext('2d');
-
                         canvas.height = viewport.height; canvas.width = viewport.width;
-
                         await page.render({ canvasContext: ctx, viewport }).promise;
-
                         const dataUrl = canvas.toDataURL('image/png');
-
                         const pageId = `pdf_page_${Date.now()}_${i}`;
-
-                       
-
+                        
                         const pageData = { id: pageId, url: dataUrl };
-
                         currentPdfPageUrls.push(pageData);
 
-
-
                         const div = document.createElement('div');
-
                         div.className = 'page-card bg-white p-1 rounded-lg shadow-sm relative group cursor-grab';
-
                         div.setAttribute('data-page-id', pageId);
-
                         div.innerHTML = `
-
                             <div class="relative overflow-hidden rounded">
-
                                 <img src="${dataUrl}" class="w-full h-auto">
-
                                 <button class="add-btn absolute top-1 right-1 bg-blue-600 text-white w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow font-black leading-none text-size-11">＋</button>
-
-                                <!-- 取消按鈕已移除 -->
-
                             </div>
-
                         `;
-
-                       
-
+                        
                         div.querySelector('.add-btn').onclick = (e) => { e.stopPropagation(); createNewSlot(dataUrl); showToast('已導入工作台'); };
-
-                       
-
+                        
                         pdfPagesList.appendChild(div);
-
                     }
-
                     updatePdfZoom();
-
                 } catch (err) { showToast('PDF 解析失敗', true); }
-
             }
-
-
 
             function updatePdfZoom() {
-
                 pdfPagesList.style.setProperty('--pdf-page-width', `${pdfZoomRange.value}px`);
-
             }
-
             pdfZoomRange.oninput = updatePdfZoom;
 
-
-
             // 還原下載按鈕功能
-
             pdfDownloadBackupBtn.onclick = () => {
-
                 if (!lastRestoreBlob) return showToast('尚未產生還原數據', true);
-
                 const customName = document.getElementById('pdf-export-name').value.trim();
-
                 const fileName = customName ? `${customName}_Backup.pptx` : `Restore_Backup_${Date.now()}.pptx`;
-
                 const a = document.createElement('a');
-
                 a.href = URL.createObjectURL(lastRestoreBlob);
-
                 a.download = fileName;
-
                 a.click();
-
                 showToast('備份檔案已下載');
-
             };
-
-
 
             document.getElementById('pdf-to-pptx-btn').onclick = async () => {
-
                 if (currentPdfPageUrls.length === 0) return showToast('請先解析 PDF', true);
-
                 const btn = document.getElementById('pdf-to-pptx-btn');
-
                 const txt = document.getElementById('pptx-btn-text');
-
                 const ldr = document.getElementById('pptx-loader');
-
                 const customName = document.getElementById('pdf-export-name').value.trim();
-
-               
-
+                
+                // 檢查 API Key
+                if (!apiKey) {
+                    showToast('請先點擊上方按鈕設定 API Key', true);
+                    openApiModal();
+                    return;
+                }
+                
                 btn.disabled = true; ldr.classList.remove('hidden'); pdfDownloadBackupBtn.classList.add('hidden');
-
-               
-
+                
                 try {
-
                     const pptx = new PptxGenJS();
-
                     pptx.layout = 'LAYOUT_WIDE';
-
                     for (let i = 0; i < currentPdfPageUrls.length; i++) {
-
                         const pageData = currentPdfPageUrls[i];
-
                         txt.textContent = `辨識中 (${i+1}/${currentPdfPageUrls.length})`;
-
                         const base64 = pageData.url.split(',')[1];
-
-                       
-
+                        
                         const blocks = await callAiOcr(base64);
-
-                       
-
+                        
                         const slide = pptx.addSlide(); slide.background = { fill: "FFFFFF" };
-
                         if (blocks && Array.isArray(blocks)) {
-
                             blocks.forEach(block => {
-
                                 if (!block.text || !block.box_2d) return;
-
                                 let [ymin, xmin, ymax, xmax] = block.box_2d;
-
                                 if (ymax <= 1 && xmax <= 1) { ymin *= 1000; xmin *= 1000; ymax *= 1000; xmax *= 1000; }
-
                                 slide.addText(block.text, {
-
                                     x: `${(xmin / 10).toFixed(2)}%`,
-
                                     y: `${(ymin / 10).toFixed(2)}%`,
-
                                     w: `${((xmax - xmin) / 10).toFixed(2)}%`,
-
                                     h: `${((ymax - ymin) / 10).toFixed(2)}%`,
-
                                     fontSize: block.font_size || 12,
-
                                     color: block.color?.replace('#','') || '000000',
-
                                     bold: block.is_bold || false, align: block.align || 'left', valign: 'middle'
-
                                 });
-
                             });
-
                         }
-
                         await wait(1800);
-
                     }
-
                     const fileName = customName ? `${customName}.pptx` : `Restore_${Date.now()}.pptx`;
-
                     lastRestoreBlob = await pptx.write("blob");
-
                     const downloadUrl = URL.createObjectURL(lastRestoreBlob);
-
                     const a = document.createElement('a'); a.href = downloadUrl; a.download = fileName; a.click();
-
                     pdfDownloadBackupBtn.classList.remove('hidden');
-
                     showToast(`還原完成`);
-
-                } catch (err) { showToast(`還原失敗: ${err.message}`, true); }
-
+                } catch (err) { 
+                    showToast(`還原失敗: ${err.message}`, true); 
+                    if(err.message.includes('API Key')) openApiModal();
+                }
                 finally { btn.disabled = false; ldr.classList.add('hidden'); txt.textContent = '視覺還原 PPTX'; }
-
             };
-
-
 
             async function callAiOcr(base64) {
-
                 let prompt = "請辨識圖片中所有文字。回傳 JSON ARRAY，每個物件包含：text, box_2d [ymin, xmin, ymax, xmax], font_size, is_bold, align, color。座標比例 0-1000。";
-
                 prompt += " 【最佳化指令】來源文件包含 NotebookLM 生成之特徵。請特別注意處理雙欄位排版與標題層級。若有右下角的 'NOTEBOOKLM' 水印字樣，請務必辨識並精確標註位置。";
-
-               
-
+                
                 const payload = {
-
                     contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/png", data: base64 } }] }],
-
                     generationConfig: {
-
                         responseMimeType: "application/json",
-
                         responseSchema: {
-
                             type: "ARRAY",
-
                             items: {
-
                                 type: "OBJECT",
-
                                 properties: {
-
                                     text: { type: "STRING" },
-
                                     box_2d: { type: "ARRAY", items: { type: "NUMBER" } },
-
                                     font_size: { type: "NUMBER" },
-
                                     is_bold: { type: "BOOLEAN" },
-
                                     align: { type: "STRING" },
-
                                     color: { type: "STRING" }
-
                                 },
-
                                 required: ["text", "box_2d"]
-
                             }
-
                         }
-
                     }
-
                 };
-
-                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_OCR}:generateContent?key=${apiKey}`, {
-
+                // URL 的 Key 參數已經在 fetchWithRetry 中處理
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_OCR}:generateContent`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-
                 });
-
                 const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
                 return textResult ? JSON.parse(textResult) : [];
-
             }
-
-
 
             async function processSingleSlot(s) {
-
                 if (!s.originalBase64) return;
-
                 s.loader.classList.remove('hidden');
-
                 try {
-
                     let prompt = "Please remove all main text from this image and output a clean background version. Fill gaps naturally with background texture or context.";
-
                     const payload = {
-
                         contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/png", data: s.originalBase64 } }] }]
-
                     };
-
-                    const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_IMAGE}:generateContent?key=${apiKey}`, {
-
+                    const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_IMAGE}:generateContent`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-
                     });
-
                     const b64 = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-
                     if (b64) {
-
                         s.resultImg.src = `data:image/png;base64,${b64}`;
-
                         s.resultImg.classList.remove('hidden');
-
                         s.el.querySelector('.placeholder').classList.add('hidden');
-
                         const dBtn = s.el.querySelector('.download-btn');
-
                         dBtn.disabled = false;
-
                         dBtn.onclick = () => {
-
                             const a = document.createElement('a'); a.href = s.resultImg.src; a.download = `cleaned_${Date.now()}.png`; a.click();
-
                         };
-
                     }
-
-                } catch (e) { showToast(`處理失敗`, true); }
-
+                } catch (e) { 
+                    showToast(`處理失敗: ${e.message}`, true);
+                    if(e.message.includes('API Key')) openApiModal();
+                }
                 finally { s.loader.classList.add('hidden'); updateGlobalControls(); }
-
             }
-
-
 
             processAllBtn.onclick = async () => {
-
-                const pending = slots.filter(s => s.originalBase64 && !s.resultImg.src.startsWith('data'));
-
-                if (pending.length === 0) return;
-
-                showToast(`正在批次處理 ${pending.length} 張圖片...`);
-
-                pending.forEach(s => s.waitingOverlay.classList.remove('hidden'));
-
-                for (const s of pending) {
-
-                    s.waitingOverlay.classList.add('hidden');
-
-                    await processSingleSlot(s);
-
-                    await wait(1800);
-
+                // 批次處理前檢查 Key
+                if (!apiKey) {
+                    showToast('請先設定 API Key', true);
+                    openApiModal();
+                    return;
                 }
-
+                
+                const pending = slots.filter(s => s.originalBase64 && !s.resultImg.src.startsWith('data'));
+                if (pending.length === 0) return;
+                showToast(`正在批次處理 ${pending.length} 張圖片...`);
+                pending.forEach(s => s.waitingOverlay.classList.remove('hidden'));
+                for (const s of pending) {
+                    s.waitingOverlay.classList.add('hidden');
+                    await processSingleSlot(s);
+                    await wait(1800);
+                }
                 showToast('批次處理完成');
-
             };
-
-
 
             document.getElementById('export-results-pptx-btn').onclick = () => {
-
                 const results = slots.filter(s => s.resultImg.src.startsWith('data:image'));
-
                 if (results.length === 0) return showToast('無可導出內容', true);
-
                 const customName = document.getElementById('results-export-name').value.trim();
-
                 const pptx = new PptxGenJS();
-
                 pptx.layout = 'LAYOUT_WIDE';
-
                 results.forEach(s => {
-
                     pptx.addSlide().addImage({ data: s.resultImg.src, x: 0, y: 0, w: '100%', h: '100%' });
-
                 });
-
                 const fileName = customName ? `${customName}.pptx` : `Export_${Date.now()}.pptx`;
-
                 pptx.writeFile({ fileName });
-
                 showToast(`已成功導出 ${fileName}`);
-
             };
-
-
 
             function addPptxLog(msg) {
-
                 const div = document.createElement('div');
-
                 div.className = 'log-line'; div.textContent = msg;
-
                 pptxLogs.appendChild(div); pptxLogs.scrollTop = pptxLogs.scrollHeight;
-
             }
 
-
-
             document.getElementById('pptx-text-drop').onclick = () => document.getElementById('pptx-text-input').click();
-
             document.getElementById('pptx-bg-drop').onclick = () => document.getElementById('pptx-bg-input').click();
-
             document.getElementById('pptx-text-input').onchange = (e) => {
-
                 textPptxFile = e.target.files[0];
-
                 document.getElementById('pptx-text-name').textContent = textPptxFile ? textPptxFile.name : '尚未選擇';
-
             };
-
             document.getElementById('pptx-bg-input').onchange = (e) => {
-
                 bgPptxFile = e.target.files[0];
-
                 document.getElementById('pptx-bg-name').textContent = bgPptxFile ? bgPptxFile.name : '尚未選擇';
-
             };
-
             startMergeBtn.onclick = async () => {
-
                 if (!textPptxFile || !bgPptxFile) return showToast('請先選擇檔案', true);
-
                 startMergeBtn.disabled = true; mergeLogContainer.classList.remove('hidden');
-
                 downloadMergedBtn.classList.add('hidden'); pptxLogs.innerHTML = '';
-
                 addPptxLog('啟動合併程序...');
-
                 try {
-
                     const textZip = new JSZip(); const bgZip = new JSZip();
-
                     const textContent = await textZip.loadAsync(textPptxFile);
-
                     const bgContent = await bgZip.loadAsync(bgPptxFile);
-
                     const getSlideNum = (path) => parseInt(path.match(/slide(\d+)\.xml/)[1]);
-
                     const textSlides = Object.keys(textContent.files).filter(p => p.match(/ppt\/slides\/slide\d+\.xml/)).sort((a,b) => getSlideNum(a) - getSlideNum(b));
-
                     const bgSlides = Object.keys(bgContent.files).filter(p => p.match(/ppt\/slides\/slide\d+\.xml/)).sort((a,b) => getSlideNum(a) - getSlideNum(b));
-
                     const parser = new DOMParser(); const serializer = new XMLSerializer();
-
                     const limit = Math.min(textSlides.length, bgSlides.length);
-
                     for (let i = 0; i < limit; i++) {
-
                         addPptxLog(`移植第 ${i+1} 頁內容...`);
-
                         const tXml = await textContent.file(textSlides[i]).async("string");
-
                         const bXml = await bgContent.file(bgSlides[i]).async("string");
-
                         const tDoc = parser.parseFromString(tXml, "application/xml");
-
                         const bDoc = parser.parseFromString(bXml, "application/xml");
-
                         const getSpTree = (doc) => {
-
                             const trees = doc.getElementsByTagName("*");
-
                             for(let el of trees) if(el.localName === 'spTree') return el;
-
                             return null;
-
                         };
-
                         const tTree = getSpTree(tDoc); const bTree = getSpTree(bDoc);
-
                         if (tTree && bTree) {
-
                             const nodes = Array.from(tTree.childNodes);
-
                             nodes.forEach(node => {
-
                                 const name = node.localName || node.nodeName.split(':').pop();
-
                                 if (['sp', 'grpSp', 'graphicFrame', 'pic'].includes(name)) {
-
                                     bTree.appendChild(bDoc.importNode(node, true));
-
                                 }
-
                             });
-
                             bgContent.file(bgSlides[i], serializer.serializeToString(bDoc));
-
                         }
-
                     }
-
                     mergedBlob = await bgContent.generateAsync({ type: "blob" });
-
                     addPptxLog('完成！'); downloadMergedBtn.classList.remove('hidden');
-
                     showToast('合併成功');
-
                 } catch (err) { addPptxLog(`錯誤: ${err.message}`); showToast('失敗', true); }
-
                 finally { startMergeBtn.disabled = false; }
-
             };
-
-            downloadMergedBtn.onclick = () => {
-
-                if (!mergedBlob) return;
-
-                const customName = document.getElementById('merge-export-name').value.trim();
-
-                const a = document.createElement('a');
-
-                a.href = URL.createObjectURL(mergedBlob);
-
-                const fileName = customName ? `${customName}.pptx` : `Merged_${Date.now()}.pptx`;
-
-                a.download = fileName; a.click();
-
-            };
-
-
 
             clearAllSlotsBtn.onclick = () => clearAllSlots();
-
             document.getElementById('add-all-pages-btn').onclick = () => {
-
                 if (currentPdfPageUrls.length === 0) return showToast('無解析數據', true);
-
                 currentPdfPageUrls.forEach(item => createNewSlot(item.url));
-
                 showToast(`已導入 ${currentPdfPageUrls.length} 個頁面`);
-
             };
-
             document.getElementById('master-drop-zone').onclick = () => document.getElementById('master-file-input').click();
-
             document.getElementById('master-file-input').onchange = (e) => {
-
                 Array.from(e.target.files).forEach(file => {
-
                     if (file.type.startsWith('image/')) {
-
                         const reader = new FileReader();
-
                         reader.onload = (ev) => createNewSlot(ev.target.result);
-
                         reader.readAsDataURL(file);
-
                     }
-
                 });
-
             };
-
-           
-
+            
             updatePdfZoom();
-
             slotsContainer.style.setProperty('--slot-width', `${slotZoomRange.value}px`);
-
             updateGlobalControls();
-
         });
-
     </script>
-
 </body>
-
 </html>
